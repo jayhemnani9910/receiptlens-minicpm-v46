@@ -1,0 +1,40 @@
+name: ReceiptLens
+options:
+  bundleIdPrefix: com.local
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    IPHONEOS_DEPLOYMENT_TARGET: 16.0
+    CLANG_CXX_LANGUAGE_STANDARD: gnu++20
+    CLANG_CXX_LIBRARY: libc++
+targets:
+  ReceiptLens:
+    type: application
+    platform: iOS
+    sources:
+      - path: ReceiptLens
+        excludes:
+          - Assets.xcassets
+          - PrivacyInfo.xcprivacy
+    resources:
+      - path: ReceiptLens/Assets.xcassets
+      - path: ReceiptLens/PrivacyInfo.xcprivacy
+    info:
+      path: ReceiptLens/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.local.ReceiptLens
+        PRODUCT_NAME: ReceiptLens
+        INFOPLIST_FILE: ReceiptLens/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_OBJC_BRIDGING_HEADER: ReceiptLens/NativeBridge/ReceiptLens-Bridging-Header.h
+        GCC_ENABLE_CPP_EXCEPTIONS: YES
+        OTHER_LDFLAGS: "$(inherited) -lc++"
+    dependencies:
+      - framework: Vendor/llama.xcframework
+        embed: true
+      - sdk: Metal.framework
+      - sdk: Accelerate.framework
+      - sdk: CoreAudioTypes.framework

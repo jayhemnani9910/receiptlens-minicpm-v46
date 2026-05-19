@@ -27,8 +27,8 @@ struct ModelSetupView: View {
                 Section("Runtime") {
                     LabeledContent("Mode", value: "Fully offline")
                     LabeledContent("Engine", value: "llama.cpp")
-                    LabeledContent("Context", value: "4096")
-                    LabeledContent("Device", value: "iPhone 14 Pro target")
+                    LabeledContent("Context", value: "\(EngineConfig.nCtx)")
+                    LabeledContent("Max output", value: "\(EngineConfig.nPredict) tokens")
                 }
             }
             .navigationTitle("Model")

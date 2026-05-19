@@ -18,7 +18,6 @@ struct RootView: View {
                     Label("Model", systemImage: "shippingbox")
                 }
         }
-        .tint(Color(red: 0.078, green: 0.443, blue: 0.373))
     }
 }
 

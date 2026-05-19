@@ -1,7 +1,9 @@
 import Foundation
 
 extension URLSession {
-    func download(
+    /// Download a URL and stream progress through `progress(bytesWritten, totalBytesWritten, totalBytesExpectedToWrite)`.
+    /// Creates a fresh session per call (so this is not a method on `URLSession.shared`).
+    static func downloadWithProgress(
         from url: URL,
         progress: @escaping @Sendable (Int64, Int64, Int64) -> Void
     ) async throws -> (URL, URLResponse) {

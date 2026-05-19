@@ -10,6 +10,13 @@ struct ScannerView: View {
     @State private var showingCamera = false
     @State private var showingPhotoLibrary = false
 
+    private var engineBusy: Bool {
+        switch appState.engine.state {
+        case .running, .loading: return true
+        default: return false
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -27,10 +34,10 @@ struct ScannerView: View {
             .navigationTitle("ReceiptLens")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingCamera) {
-                CameraPicker(sourceType: .camera, image: $selectedImage)
+                CameraPicker(image: $selectedImage)
             }
             .sheet(isPresented: $showingPhotoLibrary) {
-                CameraPicker(sourceType: .photoLibrary, image: $selectedImage)
+                PhotoLibraryPicker(image: $selectedImage)
             }
         }
     }
@@ -94,6 +101,7 @@ struct ScannerView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(engineBusy)
 
                 Button {
                     showingPhotoLibrary = true
@@ -102,6 +110,7 @@ struct ScannerView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .disabled(engineBusy)
             }
         }
         .panelStyle()
@@ -125,18 +134,32 @@ struct ScannerView: View {
     }
 
     private var runButton: some View {
-        Button {
-            guard let selectedImage else { return }
-            Task {
-                await appState.analyze(image: selectedImage, mode: mode, customPrompt: customPrompt)
+        Group {
+            if appState.engine.state == .running {
+                Button(role: .destructive) {
+                    appState.engine.stop()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+            } else {
+                Button {
+                    guard let selectedImage else { return }
+                    Task {
+                        await appState.analyze(image: selectedImage, mode: mode, customPrompt: customPrompt)
+                    }
+                } label: {
+                    Label("Analyze", systemImage: "sparkles")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(selectedImage == nil || !appState.modelStore.files.isReady || engineBusy)
             }
-        } label: {
-            Label("Analyze", systemImage: "sparkles")
-                .font(.headline)
-                .frame(maxWidth: .infinity, minHeight: 48)
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(selectedImage == nil || !appState.modelStore.files.isReady || appState.engine.state == .running)
     }
 
     private var outputPanel: some View {

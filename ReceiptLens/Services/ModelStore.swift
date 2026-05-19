@@ -58,11 +58,22 @@ final class ModelStore: NSObject, ObservableObject {
         }
 
         state = .downloading(asset.displayName, 0)
-        let (temporaryURL, response) = try await URLSession.shared.download(from: asset.url) { bytesWritten, totalBytesWritten, totalBytesExpectedToWrite in
-            guard totalBytesExpectedToWrite > 0 else { return }
-            let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
-            Task { @MainActor in
-                self.state = .downloading(asset.displayName, progress)
+
+        // Throttle progress updates to once per integer percent — URLSession
+        // fires the delegate per chunk (~16 KB), which on a 1 GB GGUF means
+        // tens of thousands of callbacks otherwise. The throttle is shared
+        // across delegate calls (serial queue, so non-atomic mutation is safe).
+        let throttle = ProgressThrottle()
+        let displayName = asset.displayName
+
+        let (temporaryURL, response) = try await URLSession.downloadWithProgress(from: asset.url) { [weak self] _, written, total in
+            guard total > 0 else { return }
+            let percent = Int(Double(written) / Double(total) * 100)
+            guard percent != throttle.lastPercent else { return }
+            throttle.lastPercent = percent
+            let progress = Double(percent) / 100.0
+            Task { @MainActor [weak self] in
+                self?.state = .downloading(displayName, progress)
             }
         }
 
@@ -84,6 +95,10 @@ final class ModelStore: NSObject, ObservableObject {
     }
 }
 
+private final class ProgressThrottle: @unchecked Sendable {
+    var lastPercent: Int = -1
+}
+
 enum ModelStoreError: LocalizedError {
     case badResponse
 
@@ -91,4 +106,3 @@ enum ModelStoreError: LocalizedError {
         "Model download failed."
     }
 }
-

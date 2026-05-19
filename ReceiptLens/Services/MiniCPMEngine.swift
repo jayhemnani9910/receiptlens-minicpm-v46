@@ -24,13 +24,14 @@ final class MiniCPMEngine: ObservableObject {
     @Published private(set) var state: EngineState = .idle
     @Published private(set) var output = ""
 
-    private let wrapper = MTMDWrapper()
+    let wrapper = MTMDWrapper()
     private var cancellables = Set<AnyCancellable>()
     private var loadedPaths: (String, String)?
 
     init() {
+        // wrapper is @MainActor, so $fullOutput already publishes on main.
+        // No DispatchQueue.main hop needed.
         wrapper.$fullOutput
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] text in
                 self?.output = text
             }
@@ -38,6 +39,9 @@ final class MiniCPMEngine: ObservableObject {
     }
 
     func analyze(imageURL: URL, prompt: String, files: ModelFiles) async throws -> String {
+        guard state != .running, state != .loading else {
+            throw MiniCPMEngineError.busy
+        }
         guard files.isReady else {
             throw MiniCPMEngineError.modelsMissing
         }
@@ -46,22 +50,20 @@ final class MiniCPMEngine: ObservableObject {
         state = .running
         output = ""
 
-        wrapper.clearKVCacheForNewTurn()
-        try await wrapper.addImageInBackground(imageURL.path)
-        try await wrapper.addTextInBackground(prompt, role: "user")
-        try await wrapper.startGeneration()
-
-        while wrapper.generationState == .generating {
-            try await Task.sleep(nanoseconds: 80_000_000)
-        }
-
-        if case .failed(let error) = wrapper.generationState {
-            state = .failed(error.localizedDescription)
+        do {
+            await wrapper.clearKVCacheForNewTurn()
+            try await wrapper.addUserImageAndText(imagePath: imageURL.path, text: prompt)
+            let result = try await wrapper.runGeneration()
+            state = .ready
+            return result
+        } catch {
+            state = .failed("Analysis failed: \(error.localizedDescription)")
             throw error
         }
+    }
 
-        state = .ready
-        return output.trimmingCharacters(in: .whitespacesAndNewlines)
+    func stop() {
+        wrapper.stopGeneration()
     }
 
     func fail(_ message: String) {
@@ -70,7 +72,9 @@ final class MiniCPMEngine: ObservableObject {
 
     private func loadIfNeeded(files: ModelFiles) async throws {
         let paths = (files.llm.path, files.mmproj.path)
-        if loadedPaths?.0 == paths.0, loadedPaths?.1 == paths.1, wrapper.initializationState == .initialized {
+        if loadedPaths?.0 == paths.0,
+           loadedPaths?.1 == paths.1,
+           wrapper.initializationState == .initialized {
             return
         }
 
@@ -82,18 +86,23 @@ final class MiniCPMEngine: ObservableObject {
         let params = MTMDParams(
             modelPath: paths.0,
             mmprojPath: paths.1,
-            nPredict: 768,
-            nCtx: 4096,
-            nThreads: 4,
-            temperature: 0.2,
+            nPredict: EngineConfig.nPredict,
+            nCtx: EngineConfig.nCtx,
+            nThreads: EngineConfig.nThreads,
+            temperature: EngineConfig.temperature,
             useGPU: true,
             mmprojUseGPU: true,
             warmup: true,
-            nUbatch: 256,
-            imageMaxSliceNums: -1,
-            imageMaxTokens: 256
+            nUbatch: EngineConfig.nUbatch,
+            imageMaxSliceNums: EngineConfig.imageMaxSliceNums,
+            imageMaxTokens: EngineConfig.imageMaxTokens
         )
-        try await wrapper.initialize(with: params)
+        do {
+            try await wrapper.initialize(with: params)
+        } catch {
+            state = .failed("Load failed: \(error.localizedDescription)")
+            throw error
+        }
         loadedPaths = paths
         state = .ready
     }
@@ -101,9 +110,14 @@ final class MiniCPMEngine: ObservableObject {
 
 enum MiniCPMEngineError: LocalizedError {
     case modelsMissing
+    case busy
 
     var errorDescription: String? {
-        "Download the model files first."
+        switch self {
+        case .modelsMissing:
+            return "Download the model files first."
+        case .busy:
+            return "Engine is already busy."
+        }
     }
 }
-

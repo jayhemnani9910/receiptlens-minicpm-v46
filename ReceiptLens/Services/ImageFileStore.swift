@@ -1,8 +1,10 @@
 import Foundation
 import UIKit
 
-final class ImageFileStore {
+final class ImageFileStore: @unchecked Sendable {
     private let directory: URL
+    private let maxDimension: CGFloat = 1600
+    private let jpegQuality: CGFloat = 0.92
 
     init() {
         let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -10,15 +12,61 @@ final class ImageFileStore {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    func saveForAnalysis(_ image: UIImage) throws -> URL {
-        let scaled = image.resizedForVision(maxDimension: 1600)
-        guard let data = scaled.jpegData(compressionQuality: 0.92) else {
-            throw ImageStoreError.encodingFailed
-        }
+    /// Resize, encode, and save an image off the main thread. Returns the
+    /// absolute URL of the written JPEG.
+    func saveForAnalysis(_ image: UIImage) async throws -> URL {
+        let filename = UUID().uuidString + ".jpg"
+        let url = directory.appendingPathComponent(filename)
+        let maxDim = maxDimension
+        let quality = jpegQuality
 
-        let url = directory.appendingPathComponent(UUID().uuidString).appendingPathExtension("jpg")
-        try data.write(to: url, options: [.atomic])
+        try await Task.detached(priority: .userInitiated) {
+            let scaled = image.resizedForVision(maxDimension: maxDim)
+            guard let data = scaled.jpegData(compressionQuality: quality) else {
+                throw ImageStoreError.encodingFailed
+            }
+            try data.write(to: url, options: [.atomic])
+        }.value
+
         return url
+    }
+
+    func url(for filename: String) -> URL {
+        directory.appendingPathComponent(filename)
+    }
+
+    /// Delete the scan image with the given filename. Safe to call from any task.
+    func delete(filename: String) async throws {
+        let url = directory.appendingPathComponent(filename)
+        try await Task.detached(priority: .utility) {
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }.value
+    }
+
+    /// Remove any images on disk not referenced by the given filename set.
+    func pruneOrphans(referencedFilenames: Set<String>) async {
+        let directory = self.directory
+        await Task.detached(priority: .utility) {
+            guard let contents = try? FileManager.default.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ) else {
+                return
+            }
+            for url in contents where !referencedFilenames.contains(url.lastPathComponent) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }.value
+    }
+
+    /// Load and decode a scan image off the main thread.
+    func loadImage(at url: URL) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return UIImage(data: data)
+        }.value
     }
 }
 
@@ -43,4 +91,3 @@ private extension UIImage {
         }
     }
 }
-

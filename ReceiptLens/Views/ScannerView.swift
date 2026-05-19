@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -7,9 +6,9 @@ struct ScannerView: View {
 
     @State private var mode: AnalysisMode = .receipt
     @State private var selectedImage: UIImage?
-    @State private var selectedPhoto: PhotosPickerItem?
     @State private var customPrompt = ""
     @State private var showingCamera = false
+    @State private var showingPhotoLibrary = false
 
     var body: some View {
         NavigationStack {
@@ -28,12 +27,10 @@ struct ScannerView: View {
             .navigationTitle("ReceiptLens")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingCamera) {
-                CameraPicker(image: $selectedImage)
+                CameraPicker(sourceType: .camera, image: $selectedImage)
             }
-            .onChange(of: selectedPhoto) { item in
-                Task {
-                    selectedImage = try? await item?.loadUIImage()
-                }
+            .sheet(isPresented: $showingPhotoLibrary) {
+                CameraPicker(sourceType: .photoLibrary, image: $selectedImage)
             }
         }
     }
@@ -98,7 +95,9 @@ struct ScannerView: View {
                 }
                 .buttonStyle(.borderedProminent)
 
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                Button {
+                    showingPhotoLibrary = true
+                } label: {
                     Label("Photos", systemImage: "photo.on.rectangle")
                         .frame(maxWidth: .infinity)
                 }

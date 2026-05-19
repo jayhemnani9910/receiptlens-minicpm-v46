@@ -3,11 +3,12 @@ import UIKit
 
 struct CameraPicker: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
+    let sourceType: UIImagePickerController.SourceType
     @Binding var image: UIImage?
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let controller = UIImagePickerController()
-        controller.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        controller.sourceType = UIImagePickerController.isSourceTypeAvailable(sourceType) ? sourceType : .photoLibrary
         controller.delegate = context.coordinator
         return controller
     }
@@ -38,4 +39,3 @@ struct CameraPicker: UIViewControllerRepresentable {
         }
     }
 }
-

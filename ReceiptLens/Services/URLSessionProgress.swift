@@ -22,6 +22,12 @@ private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelega
     func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {}
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
         didWriteData bytesWritten: Int64,
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64

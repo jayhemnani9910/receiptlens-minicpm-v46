@@ -37,4 +37,3 @@ targets:
         embed: true
       - sdk: Metal.framework
       - sdk: Accelerate.framework
-      - sdk: CoreAudioTypes.framework

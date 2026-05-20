@@ -3,6 +3,12 @@ import UIKit
 
 struct HistoryView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var query = ""
+
+    private var sections: [(bucket: HistoryBucket, scans: [ReceiptScan])] {
+        let filtered = HistorySectioning.filter(appState.scans, query: query)
+        return HistorySectioning.grouped(filtered)
+    }
 
     var body: some View {
         NavigationStack {
@@ -11,91 +17,74 @@ struct HistoryView: View {
                     emptyState
                 } else {
                     List {
-                        ForEach(appState.scans) { scan in
-                            NavigationLink {
-                                ScanDetailView(scan: scan)
-                            } label: {
-                                ScanRow(scan: scan)
+                        ForEach(sections, id: \.bucket) { section in
+                            Section(section.bucket.rawValue) {
+                                ForEach(section.scans) { scan in
+                                    NavigationLink {
+                                        ScanDetailView(scan: scan)
+                                    } label: {
+                                        ScanRow(scan: scan)
+                                    }
+                                }
+                                .onDelete { offsets in delete(in: section.scans, at: offsets) }
                             }
                         }
-                        .onDelete(perform: appState.deleteScans)
                     }
+                    .listStyle(.insetGrouped)
+                    .searchable(text: $query, prompt: "Search scans")
                 }
             }
             .navigationTitle("History")
-            .toolbar {
-                if !appState.scans.isEmpty {
-                    EditButton()
-                }
-            }
+            .toolbar { if !appState.scans.isEmpty { EditButton() } }
         }
+    }
+
+    private func delete(in scans: [ReceiptScan], at offsets: IndexSet) {
+        for index in offsets { appState.deleteScan(scans[index]) }
     }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "clock")
-                .font(.system(size: 42))
-                .foregroundStyle(.secondary)
-            Text("No scans yet")
-                .font(.headline)
-            Text("Completed analyses appear here.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 48)).foregroundStyle(.secondary)
+            Text("No scans yet").font(.title2.weight(.semibold))
+            Text("Tap Scan to capture one.")
+                .font(.body).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 private struct ScanRow: View {
-    let scan: ReceiptScan
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(scan.mode.rawValue, systemImage: scan.mode.systemImage)
-                .font(.headline)
-            Text(scan.output)
-                .font(.subheadline)
-                .lineLimit(3)
-                .foregroundStyle(.secondary)
-            Text(scan.createdAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-    }
-}
-
-struct ScanDetailView: View {
     @EnvironmentObject private var appState: AppState
     let scan: ReceiptScan
-
-    @State private var image: UIImage?
+    @State private var thumb: UIImage?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+        HStack(spacing: 12) {
+            Group {
+                if let thumb {
+                    Image(uiImage: thumb).resizable().scaledToFill()
                 } else {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(.secondarySystemGroupedBackground))
-                        .frame(height: 240)
-                        .overlay { ProgressView() }
+                    Rectangle().fill(Color(.secondarySystemGroupedBackground))
                 }
-
-                Text(scan.output)
-                    .font(.body.monospaced())
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Image(systemName: scan.mode.systemImage).foregroundStyle(scan.mode.tint)
+                    Text(scan.mode.label).font(.headline)
+                    Text("· \(scan.createdAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                Text(scan.output)
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+            }
         }
-        .navigationTitle(scan.mode.rawValue)
-        .navigationBarTitleDisplayMode(.inline)
-        .task(id: scan.id) {
-            image = await appState.imageStore.loadImage(at: appState.imageURL(for: scan))
+        .task(id: scan.imageFilename) {
+            thumb = await ThumbnailCache.shared.thumbnail(for: appState.imageURL(for: scan))
         }
     }
 }

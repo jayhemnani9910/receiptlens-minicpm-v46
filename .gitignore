@@ -5,3 +5,4 @@ build-artifacts/
 tools/
 *.xcuserdata/
 *.xcuserstate
+ci-ipa/

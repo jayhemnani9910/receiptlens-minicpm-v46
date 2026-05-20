@@ -82,7 +82,7 @@ struct SettingsView: View {
     @ViewBuilder private var statusRow: some View {
         switch appState.modelStore.state {
         case .ready:
-            Label { Text("Ready").font(.headline) + Text("\nMiniCPM-V 4.6 · ~1.6 GB").font(.caption).foregroundStyle(.secondary) }
+            Label { Text("Ready").font(.headline) + Text("\nMiniCPM-V 4.6 · ~1.6 GB").font(.caption).foregroundColor(.secondary) }
             icon: { Image(systemName: "checkmark.seal.fill").foregroundStyle(.green) }
         case .downloading(let name, let progress):
             VStack(alignment: .leading, spacing: 6) {

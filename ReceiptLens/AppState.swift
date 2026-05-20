@@ -70,6 +70,24 @@ final class AppState: ObservableObject {
     func deleteScans(at offsets: IndexSet) {
         let removed = offsets.map { scans[$0] }
         scans.remove(atOffsets: offsets)
+        evictAndDelete(removed)
+    }
+
+    func deleteScan(_ scan: ReceiptScan) {
+        scans.removeAll { $0.id == scan.id }
+        evictAndDelete([scan])
+    }
+
+    func clearAllScans() {
+        let removed = scans
+        scans.removeAll()
+        evictAndDelete(removed)
+    }
+
+    private func evictAndDelete(_ removed: [ReceiptScan]) {
+        for scan in removed {
+            ThumbnailCache.shared.remove(filename: scan.imageFilename)
+        }
         Task { [imageStore] in
             for scan in removed {
                 try? await imageStore.delete(filename: scan.imageFilename)

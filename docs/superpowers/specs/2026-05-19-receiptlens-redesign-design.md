@@ -1,7 +1,7 @@
 # ReceiptLens UI Redesign — Design Spec
 
-**Date:** 2026-05-19
-**Status:** Brainstorming paused at end of Section 3. Sections 1 and 2 explicitly approved. Section 3 presented but awaiting user confirmation. Resume by re-reading Section 3 and giving a yes/revise.
+**Date:** 2026-05-19 (resumed and finalized 2026-05-20)
+**Status:** All three sections approved. Open items resolved (see below). Ready for the implementation plan (writing-plans).
 
 ---
 
@@ -22,7 +22,9 @@ Scope of redesign: full visual rebuild of all screens AND addition of three new 
 | App name | **Keep ReceiptLens** |
 | Accent color | **Keep current teal-green** (`AccentColor.colorset`, R 0.078 / G 0.443 / B 0.373) — easy to change later |
 | Scan layout direction | **Hero + bottom sheet** — image fills the top; mode chips and prompt below; Analyze opens a bottom sheet with streaming output |
-| App icon | Not decided yet — assume keep existing for now, revisit during/after implementation |
+| App icon | Keep existing for this redesign; revisit after implementation |
+| History delete | System Edit button (multi-select) + swipe-to-delete; both come from `List` |
+| Thumbnail caching | Lazy load via `ImageFileStore`, backed by an in-memory `NSCache` keyed by filename |
 
 ---
 
@@ -134,7 +136,7 @@ Sheet content swaps to error layout: SF Symbol `exclamationmark.triangle` (red),
 
 ---
 
-## Section 3 — History / Detail / Settings (PRESENTED, AWAITING APPROVAL)
+## Section 3 — History / Detail / Settings (APPROVED)
 
 ### History screen
 
@@ -227,15 +229,24 @@ If user taps Analyze with `modelStore.files.isReady == false`:
 
 ---
 
-## Open items / next steps when resuming
+## Open items — resolved
 
-1. **Confirm or revise Section 3** (History / Detail / Settings). User paused before saying yes.
-2. **Decide app icon direction**: keep current, generate new SF-Symbol-based, or design custom.
-3. **Decide whether to support multi-select delete in History** (currently spec has it via Edit button — that may be overkill; swipe-to-delete might be enough).
-4. **Confirm thumbnail caching strategy**: lazy-load each row's thumbnail via the same `ImageFileStore.loadImage(at:)` path used by detail, or eagerly generate small thumbs at scan time. Lazy load is fine for ≤ ~50 scans; eager thumbs needed beyond that. Assume lazy until proven slow.
-5. **Self-review the spec** for placeholders, contradictions, ambiguity, scope.
-6. **User reviews the spec** and approves.
-7. **Invoke writing-plans** to produce the per-file implementation plan, then implement.
+1. **Section 3** — approved as written.
+2. **App icon** — keep current for this redesign; revisit after implementation.
+3. **History delete** — keep both the system Edit button (multi-select) and swipe-to-delete. Both fall out of `List` + `.onDelete` + `EditButton` for near-zero cost, and match iOS conventions.
+4. **Thumbnail caching** — lazy load each row's thumbnail through `ImageFileStore`, backed by an in-memory `NSCache<NSString, UIImage>` keyed by filename, so scrolling doesn't re-decode. No eager thumb generation; revisit only if a large history scrolls poorly.
+
+## Self-review notes
+
+- **Default mode source of truth:** `@AppStorage("defaultMode")` is read by both Settings (Picker) and Scan (initial chip selection). `AnalysisMode` must be `RawRepresentable` by a stable `String` so `@AppStorage` can store it.
+- **`AnalysisMode.tintColor`:** Section 1 locks a single accent. The chip "selected = accent fill" rule stands; `tintColor` per mode is only for the small mode glyph/pill identity in History and Detail, not for chip selection. Kept subtle to avoid contradicting the single-accent rule.
+- **Ask-again reuse:** Section 2 State C and Section 3 Ask-again share one `AnalyzeSheet`. The sheet takes an input (image + preselected mode + prefilled prompt) and a completion that inserts a new `ReceiptScan`. One component, two entry points.
+- **No placeholders or TBDs remain.** Every screen has empty/loading/error states defined.
+
+## Next steps
+
+1. Invoke **writing-plans** to produce the per-file implementation plan.
+2. Implement against that plan.
 
 ---
 

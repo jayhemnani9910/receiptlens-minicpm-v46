@@ -56,6 +56,10 @@ final class MiniCPMEngine: ObservableObject {
             let result = try await wrapper.runGeneration()
             state = .ready
             return result
+        } catch is CancellationError {
+            // User tapped Stop. Keep whatever streamed so far; this is not a failure.
+            state = .ready
+            return output
         } catch {
             state = .failed("Analysis failed: \(error.localizedDescription)")
             throw error

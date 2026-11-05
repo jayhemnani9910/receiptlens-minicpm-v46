@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for device without signing
+        run: |
+          xcodebuild \
+            -project ReceiptLens.xcodeproj \
+            -scheme ReceiptLens \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Run unit tests on the simulator
+        run: |
+          device=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+( Pro)? \(' | sed 's/ ($//')
+          echo "Testing on $device"
+          xcodebuild \
+            -project ReceiptLens.xcodeproj \
+            -scheme ReceiptLens \
+            -destination "platform=iOS Simulator,name=$device" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            test

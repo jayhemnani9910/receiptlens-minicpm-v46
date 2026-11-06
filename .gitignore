@@ -5,3 +5,6 @@ build-artifacts/
 tools/
 *.xcuserdata/
 *.xcuserstate
+
+.env*
+!.env.example
